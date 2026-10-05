@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <fstream>
 #include <vector>
+#include <cstring>
 
 #pragma pack(push,1)
 struct TGAHeader {
@@ -35,7 +36,10 @@ struct TGAImage {
     void flip_horizontally();
     void flip_vertically();
     TGAColor get(const int x, const int y) const;
-    void set(const int x, const int y, const TGAColor &c);
+    inline void set(int x, int y, const TGAColor &c) {
+        if (!data.size() || x<0 || y<0 || x>=w || y>=h) return;
+        memcpy(data.data()+(x+y*w)*bpp, c.bgra, bpp);
+    }
     int width()  const;
     int height() const;
 private:
