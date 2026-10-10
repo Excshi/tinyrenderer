@@ -4,6 +4,8 @@
 #include <random>
 #include <fstream>
 #include <sstream>
+#include <vector>
+#include <tuple>
 
 constexpr TGAColor white   = {255, 255, 255, 255}; // attention, BGRA order
 constexpr TGAColor green   = {  0, 255,   0, 255};
@@ -58,7 +60,7 @@ void draw_line(int ax, int ay, int bx, int by, TGAColor color, TGAImage& framebu
     // }
 }
 
-void read_obj(std::string filename) {
+void draw_obj(std::string filename, int w, int h, TGAImage& framebuffer) {
     std::ifstream obj_file(filename);
 
     if (!obj_file.is_open()) {
@@ -66,22 +68,106 @@ void read_obj(std::string filename) {
         return;
     }
 
+    std::vector<std::vector<double>> vertices;
+    std::vector<std::vector<double>> textures;
+    std::vector<std::vector<double>> normals;
+    std::vector<std::tuple<int, int, int>> faces;
+    std::vector<std::tuple<int, int, int>> texture_faces;
+    std::vector<std::tuple<int, int, int>> normal_faces;
+
     std::string line;
     while (std::getline(obj_file, line)) {
         std::istringstream iss(line);
-        std::string token;
+        std::string type;
 
-        while (iss >> token) {
-            std::cout << token << std::endl;
+        iss >> type;
+
+        if (type == "v") {
+            double x, y, z;
+            iss >> x >> y >> z;
+            vertices.push_back({(x+1)/2 * w + 0.5, (y+1)/2 * h + 0.5, z});
+        } else if (type == "vt") {
+            double x, y, z;
+            iss >> x >> y >> z;
+            textures.push_back({(x+1)/2 * w + 0.5, (y+1)/2 * h + 0.5, z});
+        } else if (type == "vn") {
+            double x, y, z;
+            iss >> x >> y >> z;
+            normals.push_back({(x+1)/2 * w + 0.5, (y+1)/2 * h + 0.5, z});
+        } else if (type == "f") {
+            std::tuple<int, int, int> face;
+            std::tuple<int, int, int> texture_face;
+            std::tuple<int, int, int> normal_face;
+            std::string buff;
+            iss.ignore(1);
+            
+            std::getline(iss, buff, '/');
+            std::get<0>(face) = std::stoi(buff);
+            std::getline(iss, buff, '/');
+            std::get<0>(texture_face) = std::stoi(buff);
+            std::getline(iss, buff, ' ');
+            std::get<0>(normal_face) = std::stoi(buff);
+
+            std::getline(iss, buff, '/');
+            std::get<1>(face) = std::stoi(buff);
+            std::getline(iss, buff, '/');
+            std::get<1>(texture_face) = std::stoi(buff);
+            std::getline(iss, buff, ' ');
+            std::get<1>(normal_face) = std::stoi(buff);
+
+            std::getline(iss, buff, '/');
+            std::get<2>(face) = std::stoi(buff);
+            std::getline(iss, buff, '/');
+            std::get<2>(texture_face) = std::stoi(buff);
+            std::getline(iss, buff, ' ');
+            std::get<2>(normal_face) = std::stoi(buff);
+            
+            faces.push_back(face);
+            texture_faces.push_back(texture_face);
+            normal_faces.push_back(normal_face);
+
+        } else if (type == "#") {
+            std::cout << line << std::endl;
         }
+        
+    }
+
+    std::cout << "Vertices vector size: " << vertices.size() << std::endl;
+
+    for (int i = 0; i < 10; i++) {
+        std::cout << "Vertice " << i+1 << ": " << vertices[i][0] << " " << vertices[i][1] << " " << vertices[i][2] << std::endl;
+    }
+
+    for (int i = 0; i < 10; i++) {
+        std::cout << "Face " << i+1 << ": " << std::get<0>(faces[i]) << " " << std::get<1>(faces[i]) << " " << std::get<2>(faces[i]) << std::endl;
+    }
+
+    // draw faces
+    for (const auto& face : faces) {
+        std::vector<double> v1 = vertices[std::get<0>(face)-1];
+        std::vector<double> v2 = vertices[std::get<1>(face)-1];
+        std::vector<double> v3 = vertices[std::get<2>(face)-1];
+
+        // v1 to v2
+        draw_line(v1[0], v1[1], v2[0], v2[1], red, framebuffer);
+        // v3 to v2
+        draw_line(v3[0], v3[1], v2[0], v2[1], red, framebuffer);
+        // v3 to v1
+        draw_line(v3[0], v3[1], v1[0], v1[1], red, framebuffer);
+    }
+
+    // draw vertices
+    for (const auto& vertice : vertices) {
+        framebuffer.set(vertice[0], vertice[1], white);
     }
 
     return;
 }
 
 int main(int argc, char** argv) {
-    constexpr int width  = 64;
-    constexpr int height = 64;
+    constexpr int scale = 10;
+    constexpr int width  = 64 * scale;
+    constexpr int height = 64 * scale;
     TGAImage framebuffer(width, height, TGAImage::RGB);
 
     // stress test
@@ -116,7 +202,7 @@ int main(int argc, char** argv) {
     // framebuffer.set(cx, cy, white);
 
     // wireframe rendering
-    read_obj("../obj/diablo3_pose/diablo3_pose.obj");
+    draw_obj("../obj/diablo3_pose/diablo3_pose.obj", width, height, framebuffer);
 
     framebuffer.write_tga_file("framebuffer.tga");
     return 0;
